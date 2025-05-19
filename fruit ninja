@@ -1,0 +1,216 @@
+import pygame
+import random
+import time
+
+# Initialize Pygame
+pygame.init()
+
+# Game Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+# Fruit and Bomb Images (replace with your own images if needed)
+# Ensure these files exist in the same directory as your Python script
+try:
+    WATERMELON_IMG = pygame.image.load("watermelon.png")
+    ORANGE_IMG = pygame.image.load("orange.png")
+    BANANA_IMG = pygame.image.load("banana.png")
+    BOMB_IMG = pygame.image.load("bomb.png")
+except FileNotFoundError:
+    print("Error: Missing image files!  Place watermelon.png, orange.png, banana.png, and bomb.png in the same directory as this script.")
+    pygame.quit()
+    import sys
+    sys.exit()
+    # Create a display
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Fruit Ninja")
+clock = pygame.time.Clock()
+
+# Fonts
+DEFAULT_FONT = pygame.font.Font(None, 36)  # Use default font
+SCORE_FONT = pygame.font.Font('freesansbold.ttf', 32) #using a specific font.
+
+# --- Helper Functions ---
+
+def generate_fruit(level):
+    """
+    Generates a random fruit or a bomb.  The difficulty of the game is increased
+    as the level increases.  The higher the level, the more bombs and faster
+    fruits will appear.
+    """
+    fruit_types = [WATERMELON_IMG, ORANGE_IMG, BANANA_IMG]
+    bomb_chance = 0.1 + level * 0.05  # Increase bomb chance with level
+    if random.random() < bomb_chance:
+        return BOMB_IMG, random.randint(50, SCREEN_WIDTH - 50), SCREEN_HEIGHT, 0, -random.randint(8, 12) - level*0.5 #adjust speed
+    else:
+        fruit_img = random.choice(fruit_types)
+        return fruit_img, random.randint(50, SCREEN_WIDTH - 50), SCREEN_HEIGHT, random.randint(-3, 3), -random.randint(6, 10) - level*0.5 #adjust speed
+
+def display_score(score):
+    """Displays the current score on the screen."""
+    score_text = SCORE_FONT.render("Score: " + str(score), True, WHITE)
+    screen.blit(score_text, (10, 10))
+
+def display_lives(lives):
+    """Displays the number of lives remaining."""
+    lives_text = SCORE_FONT.render("Lives: " + str(lives), True, WHITE)
+    screen.blit(lives_text, (10, 50))
+
+def display_game_over(score):
+    """Displays the game over message and final score."""
+    game_over_text = DEFAULT_FONT.render("Game Over", True, RED)
+    score_text = DEFAULT_FONT.render("Final Score: " + str(score), True, WHITE)
+    play_again_text = DEFAULT_FONT.render("Press SPACE to Play Again", True, GREEN)
+
+    # Center the text
+    game_over_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+    score_rect = score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    play_again_rect = play_again_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT * 2 // 3))
+
+    screen.blit(game_over_text, game_over_rect)
+    screen.blit(score_text, score_rect)
+    screen.blit(play_again_text, play_again_rect)
+
+def splash_screen():
+    """Displays the splash screen"""
+    font = pygame.font.Font('freesansbold.ttf', 64)
+    game_title_text = font.render("Fruit Ninja", True, GREEN)
+    start_text = DEFAULT_FONT.render("Press SPACE to Start", True, WHITE)
+    instruction_text = DEFAULT_FONT.render("Slice fruits, avoid bombs!", True, BLUE)
+
+    # Center the text
+    title_rect = game_title_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+    start_rect = start_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    instruction_rect = instruction_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT * 2 // 3))
+
+    screen.blit(game_title_text, title_rect)
+    screen.blit(start_text, start_rect)
+    screen.blit(instruction_text, instruction_rect)
+
+    pygame.display.update()
+
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    waiting = False
+
+def game_loop():
+    """Main game loop."""
+    score = 0
+    lives = 3
+    fruits = []
+    level = 1
+    game_over = False
+    combo = 0
+    last_combo_time = 0
+
+    # Timer for increasing difficulty
+    level_timer = 0
+    pygame.time.set_timer(pygame.USEREVENT, 10000)  # Timer event every 10 seconds
+
+    # --- Game Loop ---
+    while True:
+        screen.fill(BLACK)  # Clear the screen
+
+        # --- Event Handling ---
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # Get the position of the mouse click
+                mouse_pos = pygame.mouse.get_pos()
+                for i, (fruit_img, x, y, speed_x, speed_y) in enumerate(fruits):
+                    # Check if the mouse click is within the fruit's boundaries
+                    fruit_rect = fruit_img.get_rect(center=(x, y))
+                    if fruit_rect.collidepoint(mouse_pos):
+                        if fruit_img == BOMB_IMG:
+                            lives -= 1
+                            fruits.pop(i)
+                            combo = 0
+                            last_combo_time = 0
+                            if lives <= 0:
+                                game_over = True
+                        else:
+                            score += 1
+                            combo += 1
+                            last_combo_time = pygame.time.get_ticks()
+                            fruits.pop(i)
+                            # Add a special effect (e.g., particle explosion) here if desired
+
+            if event.type == pygame.USEREVENT:
+                level += 1 # Increase level every 10 seconds
+                level_timer = pygame.time.get_ticks()
+
+        # --- Game Logic ---
+        if not game_over:
+            # Add new fruits
+            if len(fruits) < level + 3:  # Increase number of fruits with level
+                fruits.append(generate_fruit(level))
+
+            # Move and draw fruits
+            for i, (fruit_img, x, y, speed_x, speed_y) in enumerate(fruits):
+                x += speed_x
+                y += speed_y
+                fruits[i] = (fruit_img, x, y, speed_x, speed_y)  # Update fruit position
+
+                # Draw the fruit
+                screen.blit(fruit_img, (x, y))
+
+                # Remove fruits that go off-screen
+                if y < -50 or x < -50 or x > SCREEN_WIDTH + 50:
+                    fruits.pop(i)
+                    if fruit_img != BOMB_IMG:
+                        lives -= 1 #you lose a life if you miss a fruit.
+                    combo = 0
+                    last_combo_time = 0
+                    if lives <= 0:
+                        game_over = True
+
+            #draw combo text
+            if combo > 1 and pygame.time.get_ticks() - last_combo_time < 2000:
+                combo_text = SCORE_FONT.render(f"{combo} Combo!", True, YELLOW)
+                combo_rect = combo_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
+                screen.blit(combo_text, combo_rect)
+            elif pygame.time.get_ticks() - last_combo_time >= 2000:
+                combo = 0
+
+            display_score(score)
+            display_lives(lives)
+
+        elif game_over:
+            display_game_over(score)
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_SPACE]:
+                game_over = False
+                score = 0
+                lives = 3
+                fruits = []
+                level = 1
+                level_timer = 0
+                combo = 0
+                last_combo_time = 0
+                pygame.time.set_timer(pygame.USEREVENT, 10000)
+
+        # --- Update Display ---
+        pygame.display.flip()
+        clock.tick(FPS)
+        pygame.time.delay(8) #add a small delay
+
+if __name__ == "__main__":
+    splash_screen() #show splash screen
+    game_loop() #start the game
